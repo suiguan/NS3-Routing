@@ -99,3 +99,5 @@ SimulationSecond,ReceiveRate,PacketsReceived,NumberOfSinks,RoutingProtocol,Trans
 97,32.256,63,20,DSR,7.5
 98,46.08,90,20,DSR,7.5
 99,45.056,88,20,DSR,7.5
+,,,,,
+Avg kbps,33.632,,,,

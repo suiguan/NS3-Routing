@@ -99,3 +99,5 @@ SimulationSecond,ReceiveRate,PacketsReceived,NumberOfSinks,RoutingProtocol,Trans
 97,1.024,2,20,AODV,7.5
 98,2.56,5,20,AODV,7.5
 99,3.584,7,20,AODV,7.5
+,,,,,
+Avg kbps,2.805333333,,,,
