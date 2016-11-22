@@ -77,6 +77,7 @@
 #include "ns3/dsdv-module.h"
 #include "ns3/dsr-module.h"
 #include "ns3/applications-module.h"
+#include "ns3/netanim-module.h"
 
 using namespace ns3;
 using namespace dsr;
@@ -395,6 +396,19 @@ RoutingExperiment::Run (int nSinks, double txp, std::string CSVfileName)
   CheckThroughput ();
 
   Simulator::Stop (Seconds (TotalTime));
+
+#if 1
+  //create animation demo xml
+  char xmlName[1024];
+  snprintf(xmlName, sizeof(xmlName), "demo_%s_%d_nodes.xml", m_protocolName.c_str(), m_numNodes);
+  AnimationInterface anim(xmlName);
+  for (uint32_t ii = 0; ii < m_numNodes; ii++)
+  { 
+	  anim.SetConstantPosition(adhocNodes.Get(ii), 1.0, ii);
+  }
+#endif
+
+  //start simulation
   Simulator::Run ();
 
   //flowmon->SerializeToXmlFile ((tr_name + ".flowmon").c_str(), false, false);
