@@ -78,6 +78,14 @@
 #include "ns3/dsr-module.h"
 #include "ns3/applications-module.h"
 #include "ns3/netanim-module.h"
+#include "ns3/flow-monitor-helper.h"
+
+//#define ANIMATION_DEMO
+
+#define CHECK_THROUGHPUT
+
+#define TOTAL_TIME 100.0
+#define START_TIME (TOTAL_TIME/2)
 
 using namespace ns3;
 using namespace dsr;
@@ -95,10 +103,12 @@ public:
 
 private:
   Ptr<Socket> SetupPacketReceive (Ipv4Address addr, Ptr<Node> node);
+  void SentPacket(Ptr<Socket> socket, uint32_t dataSent);
   void ReceivePacket (Ptr<Socket> socket);
   void CheckThroughput ();
 
   uint32_t port;
+  uint32_t bytesSentTotal;
   uint32_t bytesTotal;
   uint32_t packetsReceived;
 
@@ -113,6 +123,7 @@ private:
 
 RoutingExperiment::RoutingExperiment ()
   : port (9),
+    bytesSentTotal (0),
     bytesTotal (0),
     packetsReceived (0),
     m_CSVfileName ("manet-routing.output.csv"),
@@ -157,19 +168,29 @@ RoutingExperiment::ReceivePacket (Ptr<Socket> socket)
 }
 
 void
+RoutingExperiment::SentPacket(Ptr<Socket> socket, uint32_t dataSent)
+{
+   bytesSentTotal += dataSent;
+}
+
+void
 RoutingExperiment::CheckThroughput ()
 {
   double kbs = (bytesTotal * 8.0) / 1000;
+  double pdr = double(bytesTotal) / bytesSentTotal;
+
   bytesTotal = 0;
+  bytesSentTotal = 0;
 
   std::ofstream out (m_CSVfileName.c_str (), std::ios::app);
 
   out << (Simulator::Now ()).GetSeconds () << ","
-      << kbs << ","
+      << kbs/(TOTAL_TIME - START_TIME) << ","
       << packetsReceived << ","
       << m_nSinks << ","
       << m_protocolName << ","
-      << m_txp << ""
+      << m_txp << ","
+      << pdr << ""
       << std::endl;
 
   out.close ();
@@ -207,6 +228,7 @@ main (int argc, char *argv[])
   RoutingExperiment experiment;
   std::string CSVfileName = experiment.CommandSetup (argc,argv);
 
+#ifdef CHECK_THROUGHPUT
   //blank out the last output file and write the column headers
   std::ofstream out (CSVfileName.c_str ());
   out << "SimulationSecond," <<
@@ -214,9 +236,11 @@ main (int argc, char *argv[])
   "PacketsReceived," <<
   "NumberOfSinks," <<
   "RoutingProtocol," <<
-  "TransmissionPower" <<
+  "TransmissionPower," <<
+  "Packet Deliver Ratio" <<
   std::endl;
   out.close ();
+#endif
 
   int nSinks = 20;
   double txp = 7.5;
@@ -234,7 +258,7 @@ RoutingExperiment::Run (int nSinks, double txp, std::string CSVfileName)
 
   int nWifis = m_numNodes;
 
-  double TotalTime = 100.0;
+  double TotalTime = TOTAL_TIME;
   std::string rate ("2048bps");
   std::string phyMode ("DsssRate11Mbps");
   std::string tr_name ("manet-routing-compare");
@@ -356,7 +380,8 @@ RoutingExperiment::Run (int nSinks, double txp, std::string CSVfileName)
 
       Ptr<UniformRandomVariable> var = CreateObject<UniformRandomVariable> ();
       ApplicationContainer temp = onoff1.Install (adhocNodes.Get (i + nSinks));
-      double started = TotalTime/2;
+      onoff1.InstallSocketDataSentCB(adhocNodes.Get (i + nSinks), MakeCallback (&RoutingExperiment::SentPacket, this));
+      double started = START_TIME;
       temp.Start (Seconds (var->GetValue (started, started+1)));
       temp.Stop (Seconds (TotalTime));
     }
@@ -393,11 +418,13 @@ RoutingExperiment::Run (int nSinks, double txp, std::string CSVfileName)
 
   NS_LOG_INFO ("Run Simulation.");
 
-  CheckThroughput ();
+#ifdef CHECK_THROUGHPUT
+  //CheckThroughput ();
+#endif
 
   Simulator::Stop (Seconds (TotalTime));
 
-#if 1
+#ifdef ANIMATION_DEMO
   //create animation demo xml
   char xmlName[1024];
   snprintf(xmlName, sizeof(xmlName), "demo_%s_%d_nodes.xml", m_protocolName.c_str(), m_numNodes);
@@ -412,6 +439,7 @@ RoutingExperiment::Run (int nSinks, double txp, std::string CSVfileName)
   Simulator::Run ();
 
   //flowmon->SerializeToXmlFile ((tr_name + ".flowmon").c_str(), false, false);
+  CheckThroughput ();
 
   Simulator::Destroy ();
 }
