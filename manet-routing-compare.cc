@@ -84,8 +84,10 @@
 
 #define CHECK_THROUGHPUT
 
-#define TOTAL_TIME 100.0
+#define TOTAL_TIME 20.0
 #define START_TIME (TOTAL_TIME/2)
+
+#define NUMBER_OF_SINK 4
 
 using namespace ns3;
 using namespace dsr;
@@ -242,7 +244,7 @@ main (int argc, char *argv[])
   out.close ();
 #endif
 
-  int nSinks = 20;
+  int nSinks = NUMBER_OF_SINK;
   double txp = 7.5;
 
   experiment.Run (nSinks, txp, CSVfileName);
@@ -259,7 +261,7 @@ RoutingExperiment::Run (int nSinks, double txp, std::string CSVfileName)
   int nWifis = m_numNodes;
 
   double TotalTime = TOTAL_TIME;
-  std::string rate ("2048bps");
+  std::string rate ("204800bps");
   std::string phyMode ("DsssRate11Mbps");
   std::string tr_name ("manet-routing-compare");
   int nodeSpeed = 20; //in m/s

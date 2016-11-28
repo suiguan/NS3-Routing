@@ -124,7 +124,7 @@ TypeId DsrRouting::GetTypeId ()
                                         &DsrRouting::GetPassiveBuffer),
                    MakePointerChecker<PassiveBuffer> ())
     .AddAttribute ("MaxSendBuffLen","Maximum number of packets that can be stored in send buffer.",
-                   UintegerValue (64),
+                   UintegerValue (6400), //FIXME: for now
                    MakeUintegerAccessor (&DsrRouting::m_maxSendBuffLen),
                    MakeUintegerChecker<uint32_t> ())
     .AddAttribute ("MaxSendBuffTime","Maximum time packets can be queued in the send buffer .",
@@ -320,6 +320,11 @@ DsrRouting::DsrRouting ()
   // Check the send buffer for sending packets
   m_sendBuffTimer.SetFunction (&DsrRouting::SendBuffTimerExpire, this);
   m_sendBuffTimer.Schedule (Seconds (100));
+
+
+  //FIXME: add to Attribute
+  m_lastSentMs = Simulator::Now().GetMilliSeconds();
+  m_enableNagleAlgo = false;
 }
 
 DsrRouting::~DsrRouting ()
@@ -1174,11 +1179,13 @@ DsrRouting::PacketNewRoute (Ptr<Packet> packet,
       DsrOptionSRHeader sourceRoute;
       std::vector<Ipv4Address> nodeList = toDst.GetVector ();     // Get the route from the route entry we found
       Ipv4Address nextHop = SearchNextHop (m_mainAddress, nodeList);      // Get the next hop address for the route
+
       if (nextHop == "0.0.0.0")
         {
-          PacketNewRoute (cleanP, source, destination, protocol);
+          PacketNewRoute (cleanP, source, destination, protocol); //FIXME: not understand why we call ourselves again???
           return;
         }
+
       uint8_t salvage = 0;
       sourceRoute.SetNodesAddress (nodeList);     // Save the whole route in the source route header of the packet
       /// When found a route and use it, UseExtends to the link cache
@@ -1419,6 +1426,40 @@ DsrRouting::Send (Ptr<Packet> packet,
     }
   else
     {
+      //Nagle's algorithm
+      if (m_enableNagleAlgo) {
+	      int64_t curMs = Simulator::Now().GetMilliSeconds();
+	      if (curMs - m_lastSentMs <= 200 /*FIXME: ms threshold*/) {
+
+		      bool findBuf = m_sendBuffer.Find(destination);
+                      //FIXME: assume all the buffer size are belong to the same destination
+		      if (!findBuf || m_sendBuffer.GetSize () < 1400 /*FIXME: MSS bytes threshold*/) {
+			      //We have sent a packet less than threshold ms
+			      //and the current send buffer has not excceed the MSS threshold
+			      //So we buffer the packet for now
+
+                              SendBuffEntry entry;
+			      Ptr<Packet> newp = packet->Copy ();
+                              uint32_t newSize = newp->GetSize();
+			      if (m_sendBuffer.Dequeue (destination, entry)) {
+				      Ptr<Packet> p = entry.GetPacket ()->Copy ();
+                                      uint32_t existSize = p->GetSize();
+                                      uint8_t* buf = (uint8_t*)malloc(newSize + existSize);
+                                      if (buf) {
+                                         p->CopyData(buf, existSize);
+                                         newp->CopyData(buf+existSize, newSize);
+                                         *newp = Packet(buf, newSize + existSize);
+                                         free(buf);
+                                      }
+                              }
+			      SendBuffEntry newEntry (newp, destination, m_sendBufferTimeout, protocol);     // Create a new entry for send buffer
+			      //bool result =
+                              m_sendBuffer.Enqueue (newEntry);     // Enqueue the packet in send buffer
+                              return; //we done
+		      }
+	      }
+      }
+
       // Look up routes for the specific destination
       RouteCacheEntry toDst;
       bool findRoute = m_routeCache->LookupRoute (destination, toDst);
@@ -1462,6 +1503,13 @@ DsrRouting::Send (Ptr<Packet> packet,
           DsrOptionSRHeader sourceRoute;
           std::vector<Ipv4Address> nodeList = toDst.GetVector ();       // Get the route from the route entry we found
           Ipv4Address nextHop = SearchNextHop (m_mainAddress, nodeList);        // Get the next hop address for the route
+
+	  //we send packet to destintaion, update last sent Ms      
+	  if (m_enableNagleAlgo) {
+		  //only used by Nagle Algorithm
+		  m_lastSentMs = Simulator::Now().GetMilliSeconds();
+	  }
+
           if (nextHop == "0.0.0.0")
             {
               PacketNewRoute (cleanP, source, destination, protocol);

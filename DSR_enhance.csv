@@ -1,0 +1,7 @@
+SimulationSecond,ReceiveRate,PacketsReceived,NumberOfSinks,RoutingProtocol,TransmissionPower,Packet Deliver Ratio,Enable Nagle,Num Nodes
+20,131.43,2567,4,DSR,7.5,0.163399,0,10
+20,155.2,446,4,DSR,7.5,0.19295,1,10
+20,217.242,4243,4,DSR,7.5,0.274521,0,20
+20,587.552,400,4,DSR,7.5,0.742471,1,20
+20,99.6864,1947,4,DSR,7.5,0.129129,0,30
+20,270.163,510,4,DSR,7.5,0.349955,1,30
