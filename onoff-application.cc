@@ -275,6 +275,12 @@ void OnOffApplication::SendPacket ()
   NS_ASSERT (m_sendEvent.IsExpired ());
   Ptr<Packet> packet = Create<Packet> (m_pktSize);
   m_txTrace (packet);
+
+  //FIXME: add timestamp tag to track the delay
+  TimestampTag timestamp;
+  timestamp.SetTimestamp (Simulator::Now ());
+  packet->AddByteTag (timestamp);
+
   m_socket->Send (packet);
   m_totBytes += m_pktSize;
   if (InetSocketAddress::IsMatchingType (m_peer))
@@ -315,6 +321,66 @@ void OnOffApplication::ConnectionFailed (Ptr<Socket> socket)
 void OnOffApplication::InstallSocketDataSentCB(Callback< void, Ptr< Socket >, uint32_t > dataSent)
 {
   m_socketDataSentCB = dataSent;
+}
+
+
+//----------------------------------------------------------------------
+//-- TimestampTag
+//------------------------------------------------------
+TypeId 
+TimestampTag::GetTypeId (void)
+{
+  static TypeId tid = TypeId ("TimestampTag")
+    .SetParent<Tag> ()
+    .AddConstructor<TimestampTag> ()
+    .AddAttribute ("Timestamp",
+                   "Some momentous point in time!",
+                   EmptyAttributeValue (),
+                   MakeTimeAccessor (&TimestampTag::GetTimestamp),
+                   MakeTimeChecker ())
+  ;
+  return tid;
+}
+TypeId 
+TimestampTag::GetInstanceTypeId (void) const
+{
+  return GetTypeId ();
+}
+
+uint32_t 
+TimestampTag::GetSerializedSize (void) const
+{
+  return 8;
+}
+void 
+TimestampTag::Serialize (TagBuffer i) const
+{
+  int64_t t = m_timestamp.GetNanoSeconds ();
+  i.Write ((const uint8_t *)&t, 8);
+}
+void 
+TimestampTag::Deserialize (TagBuffer i)
+{
+  int64_t t;
+  i.Read ((uint8_t *)&t, 8);
+  m_timestamp = NanoSeconds (t);
+}
+
+void
+TimestampTag::SetTimestamp (Time time)
+{
+  m_timestamp = time;
+}
+Time
+TimestampTag::GetTimestamp (void) const
+{
+  return m_timestamp;
+}
+
+void 
+TimestampTag::Print (std::ostream &os) const
+{
+  os << "t=" << m_timestamp;
 }
 
 } // Namespace ns3

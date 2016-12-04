@@ -84,10 +84,12 @@
 
 #define CHECK_THROUGHPUT
 
-#define TOTAL_TIME 20.0
+#define TOTAL_TIME 100.0
 #define START_TIME (TOTAL_TIME/2)
 
-#define NUMBER_OF_SINK 4
+#define NUMBER_OF_SINK 20
+
+#define BITRATE "2048bps"
 
 using namespace ns3;
 using namespace dsr;
@@ -113,6 +115,7 @@ private:
   uint32_t bytesSentTotal;
   uint32_t bytesTotal;
   uint32_t packetsReceived;
+  int64_t delayTotalMs;
 
   std::string m_CSVfileName;
   int m_nSinks;
@@ -128,6 +131,7 @@ RoutingExperiment::RoutingExperiment ()
     bytesSentTotal (0),
     bytesTotal (0),
     packetsReceived (0),
+    delayTotalMs(0),
     m_CSVfileName ("manet-routing.output.csv"),
     m_traceMobility (false),
     m_protocol (2), // AODV
@@ -166,6 +170,16 @@ RoutingExperiment::ReceivePacket (Ptr<Socket> socket)
       bytesTotal += packet->GetSize ();
       packetsReceived += 1;
       NS_LOG_UNCOND (PrintReceivedPacket (socket, packet));
+
+      //FIXME: we have added the timestamp tag to the packet
+      //in the onoffapplication for delay calculation
+      TimestampTag timestamp;
+      if (packet->FindFirstMatchingByteTag (timestamp)) {
+	      Time tx = timestamp.GetTimestamp ();
+	      Time delay = Simulator::Now () - tx;
+              delayTotalMs += delay.GetMilliSeconds();
+      }
+
     }
 }
 
@@ -180,9 +194,11 @@ RoutingExperiment::CheckThroughput ()
 {
   double kbs = (bytesTotal * 8.0) / 1000;
   double pdr = double(bytesTotal) / bytesSentTotal;
+  int64_t avgDelayMs = delayTotalMs / packetsReceived; 
 
   bytesTotal = 0;
   bytesSentTotal = 0;
+  delayTotalMs = 0;
 
   std::ofstream out (m_CSVfileName.c_str (), std::ios::app);
 
@@ -192,7 +208,8 @@ RoutingExperiment::CheckThroughput ()
       << m_nSinks << ","
       << m_protocolName << ","
       << m_txp << ","
-      << pdr << ""
+      << pdr << ","
+      << avgDelayMs << ""
       << std::endl;
 
   out.close ();
@@ -240,6 +257,7 @@ main (int argc, char *argv[])
   "RoutingProtocol," <<
   "TransmissionPower," <<
   "Packet Deliver Ratio" <<
+  "Avg Delay Ms" <<
   std::endl;
   out.close ();
 #endif
@@ -261,7 +279,7 @@ RoutingExperiment::Run (int nSinks, double txp, std::string CSVfileName)
   int nWifis = m_numNodes;
 
   double TotalTime = TOTAL_TIME;
-  std::string rate ("204800bps");
+  std::string rate (BITRATE);
   std::string phyMode ("DsssRate11Mbps");
   std::string tr_name ("manet-routing-compare");
   int nodeSpeed = 20; //in m/s
